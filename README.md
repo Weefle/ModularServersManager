@@ -7,6 +7,7 @@ Easily manage your game servers.
 - **Free Open Source** - you can use it, for free! Also you can fork the project too!
 - **Runs on almost everything** - Linux, Windows, MacOS... anything that supports Java 1.8 can run it!
 - **Works with _almost_ everything** - Minecraft (Bukkit, Bungeecord and Forge) and Terraria (TShock) servers have been reported as working!
+- **Servers always up** - if your server crashes or freezes, it will be restarted automatically!
 
 ### Some of the modules available
 - **Scheduler** - Run commands at the scheduled time!
