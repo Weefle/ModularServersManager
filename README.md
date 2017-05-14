@@ -12,7 +12,7 @@ Easily manage your game servers.
 - **Scheduler** - Run commands at the scheduled time!
 - **WebHook** - Provides a web hook server, useful for a Web Control Panel!
 
-## Requirements
+### Requirements
 - Java 1.8
 
 ### Is it really free?
