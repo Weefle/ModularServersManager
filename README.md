@@ -5,7 +5,7 @@ Easily manage your game servers.
 - **Modular** - enable only what you need!
 - **Public API** - develop your own modules!
 - **Free Open Source** - you can use it, for free! Also you can fork the project too!
-- **Runs on almost everything** - anything that supports Java 1.8 can run it!
+- **Runs on almost everything** - Linux, Windows, MacOS... anything that supports Java 1.8 can run it!
 - **Works with _almost_ everything** - Minecraft (Bukkit, Bungeecord and Forge) and Terraria (TShock) servers have been reported as working!
 
 ### Some of the modules available
