@@ -3,6 +3,7 @@ package net.kaikk.msm.server;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.BufferOverflowException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -120,8 +121,19 @@ public class Server {
 					final BufferedLineReader err = new BufferedLineReader(new InputStreamReader(extProcess.getErrorStream()), 102400);) {
 					while (extProcess.isAlive()) {
 						String line = null;
-						while ((line = in.nextLine()) != null || (line = err.nextLine()) != null) {
-							this.logger.info(line);
+						try {
+							while ((line = in.nextLine()) != null || (line = err.nextLine()) != null) {
+								this.logger.info(line);
+							}
+						} catch (BufferOverflowException e) {
+							if (!in.isBufferEmpty()) {
+								line = in.getBufferAndClear();
+							} else if (!err.isBufferEmpty()) {
+								line = err.getBufferAndClear();
+							} else {
+								throw e;
+							}
+							this.logger.info(line+"[LINE TOO LONG!]");
 						}
 					}
 				}
@@ -417,11 +429,11 @@ public class Server {
 	}
 
 	public void setCommandsBeforeStart(List<String> commandsBeforeStart) {
-		this.commandsBeforeStart = commandsBeforeStart;
+		this.commandsBeforeStart = new CopyOnWriteArrayList<>(commandsBeforeStart);
 	}
 
 	public void setCommandsAfterStop(List<String> commandsAfterStop) {
-		this.commandsAfterStop = commandsAfterStop;
+		this.commandsAfterStop = new CopyOnWriteArrayList<>(commandsAfterStop);
 	}
 
 	public void setStartOnNextStop(boolean startOnNextStop) {

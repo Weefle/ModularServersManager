@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.nio.BufferOverflowException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -86,8 +87,19 @@ public class ServerController implements Runnable {
 							final BufferedLineReader err = new BufferedLineReader(new InputStreamReader(extProcess.getErrorStream()), 102400);) {
 							while (extProcess.isAlive()) {
 								String line = null;
-								while ((line = in.nextLine()) != null || (line = err.nextLine()) != null) {
-									server.logger.info(line);
+								try {
+									while ((line = in.nextLine()) != null || (line = err.nextLine()) != null) {
+										server.logger.info(line);
+									}
+								} catch (BufferOverflowException e) {
+									if (!in.isBufferEmpty()) {
+										line = in.getBufferAndClear();
+									} else if (!err.isBufferEmpty()) {
+										line = err.getBufferAndClear();
+									} else {
+										throw e;
+									}
+									server.logger.info(line+"[LINE TOO LONG!]");
 								}
 							}
 						}
@@ -121,56 +133,20 @@ public class ServerController implements Runnable {
 			}
 
 			String line, lineErr = null;
-			while((line = in.nextLine()) != null || (lineErr = err.nextLine()) != null) {
-				if (line != null) {
-					// add to lines history
-					final ConsoleLine serverConsoleLine = new ConsoleLine(line, false);
-					server.lines.add(serverConsoleLine);
-					
-					// call event
-					server.instance.getManager().callEvent(new ServerConsoleOutputEvent(server, serverConsoleLine));
+			try {
+				while((line = in.nextLine()) != null || (lineErr = err.nextLine()) != null) {
+					this.handleConsoleLine(line, lineErr);
+				}
+			} catch (BufferOverflowException e) {
+				if (!in.isBufferEmpty()) {
+					line = in.getBufferAndClear()+"[LINE TOO LONG!]";
+				} else if (!err.isBufferEmpty()) {
+					line = null;
+					lineErr = err.getBufferAndClear()+"[LINE TOO LONG!]";
 				} else {
-					line = lineErr;
-					
-					// add to lines history
-					final ConsoleLine serverConsoleLine = new ConsoleLine(lineErr, true);
-					server.lines.add(serverConsoleLine);
-					
-					// call event
-					server.instance.getManager().callEvent(new ServerConsoleOutputEvent(server, serverConsoleLine, true));
+					throw e;
 				}
-
-				// if attached server, show in console
-				for (Actor actor : server.attachedActors) {
-					actor.sendRawMessage("["+server.id+"]"+line);
-				}
-				
-				switch(server.state) {
-				case STARTING: {
-					if (server.serverReadyLine.matcher(line).matches()) {
-						// server is ready (matching server ready line)
-						server.setState(ServerState.RUNNING);
-						server.instance.getManager().callEvent(new ServerReadyEvent(server));
-						server.logger.info("Server ready");
-						
-						// initialize watchdog if enabled
-						if (server.watchDogInterval > 0 && server.watchDogTimeout > 0) {
-							nextWatchDogCheckTime = System.currentTimeMillis() + (server.getWatchDogInterval() * 1000L);
-						}
-					}
-					break;
-				}
-				case RUNNING: {
-					if (watchDogNextTimeout > 0 && server.watchDogResponseLine.matcher(line).matches()) {
-						// this is a watchdog response line
-						nextWatchDogCheckTime = System.currentTimeMillis() + (server.getWatchDogInterval() * 1000L);
-						watchDogNextTimeout = 0;
-					}
-					break;
-				}
-				default:
-					break;
-				}
+				this.handleConsoleLine(line, lineErr);
 			}
 			
 			if (server.state == ServerState.STARTING && server.startTimeout > 0 && System.currentTimeMillis() - creationDate > server.startTimeout * 1000L) {
@@ -216,6 +192,58 @@ public class ServerController implements Runnable {
 			}
 		} catch (Throwable e) {
 			e.printStackTrace();
+		}
+	}
+	
+	protected void handleConsoleLine(String line, String lineErr) {
+		if (line != null) {
+			// add to lines history
+			final ConsoleLine serverConsoleLine = new ConsoleLine(line, false);
+			server.lines.add(serverConsoleLine);
+			
+			// call event
+			server.instance.getManager().callEvent(new ServerConsoleOutputEvent(server, serverConsoleLine));
+		} else {
+			line = lineErr;
+			
+			// add to lines history
+			final ConsoleLine serverConsoleLine = new ConsoleLine(lineErr, true);
+			server.lines.add(serverConsoleLine);
+			
+			// call event
+			server.instance.getManager().callEvent(new ServerConsoleOutputEvent(server, serverConsoleLine, true));
+		}
+
+		// if attached server, show in console
+		for (Actor actor : server.attachedActors) {
+			actor.sendRawMessage("["+server.id+"]"+line);
+		}
+		
+		switch(server.state) {
+		case STARTING: {
+			if (server.serverReadyLine.matcher(line).matches()) {
+				// server is ready (matching server ready line)
+				server.setState(ServerState.RUNNING);
+				server.instance.getManager().callEvent(new ServerReadyEvent(server));
+				server.logger.info("Server ready");
+				
+				// initialize watchdog if enabled
+				if (server.watchDogInterval > 0 && server.watchDogTimeout > 0) {
+					nextWatchDogCheckTime = System.currentTimeMillis() + (server.getWatchDogInterval() * 1000L);
+				}
+			}
+			break;
+		}
+		case RUNNING: {
+			if (watchDogNextTimeout > 0 && server.watchDogResponseLine.matcher(line).matches()) {
+				// this is a watchdog response line
+				nextWatchDogCheckTime = System.currentTimeMillis() + (server.getWatchDogInterval() * 1000L);
+				watchDogNextTimeout = 0;
+			}
+			break;
+		}
+		default:
+			break;
 		}
 	}
 

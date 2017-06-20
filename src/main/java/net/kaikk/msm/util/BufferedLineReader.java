@@ -21,12 +21,12 @@ public class BufferedLineReader implements Closeable, AutoCloseable, Iterable<St
 	
 	/**
 	 * Creates a buffering character-input stream that uses an input buffer of
-     * 8096 bytes.
+     * 32384 bytes.
 	 * 
 	 * @param reader a reader
 	 */
 	public BufferedLineReader(final Reader reader) {
-		this(reader, 8096);
+		this(reader, 32384);
 	}
 	
 	/**
@@ -52,8 +52,13 @@ public class BufferedLineReader implements Closeable, AutoCloseable, Iterable<St
 	 * @throws BufferOverflowException if the buffer is not big enough to read the entire line from the reader
 	 */
 	public String nextLine() throws IOException, BufferOverflowException {
+		if (this.isBufferFull()) {
+			throw new BufferOverflowException();
+		}
+		
 		while(reader.ready()) {
 			if (i >= buffer.length) {
+				i--;
 				throw new BufferOverflowException();
 			}
 			
@@ -93,6 +98,14 @@ public class BufferedLineReader implements Closeable, AutoCloseable, Iterable<St
 	 * */
 	public void clear() {
 		i = 0;
+	}
+	
+	public boolean isBufferEmpty() {
+		return i == 0;
+	}
+	
+	public boolean isBufferFull() {
+		return i + 1 >= buffer.length;
 	}
 
 	@Override
