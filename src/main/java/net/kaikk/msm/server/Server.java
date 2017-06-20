@@ -1,9 +1,9 @@
 package net.kaikk.msm.server;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.BufferOverflowException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -24,7 +24,7 @@ import net.kaikk.msm.event.server.ServerKilledEvent;
 import net.kaikk.msm.event.server.ServerStartEvent;
 import net.kaikk.msm.event.server.ServerStopEvent;
 import net.kaikk.msm.event.server.ServerStoppedEvent;
-import net.kaikk.msm.util.BufferedLineReader;
+import net.kaikk.msm.util.BufferedLineReaderThread;
 
 public class Server {
 	protected final ModularServersManager instance;
@@ -104,54 +104,77 @@ public class Server {
 			instance.getManager().callEventPost(event);
 			return;
 		}
-
+		
 		this.setState(ServerState.STARTING);
 		instance.getManager().callEventPost(event);
 		
-		for (final String rawCmd : this.commandsBeforeStart) {
-			final String cmd = rawCmd
-					.replace("%MSM_SERVER_ID", id+"")
-					.replace("%MSM_SERVER_NAME", name)
-					.replace("%MSM_SERVER_WORKING_DIR", workingDirectory);
-			try {
-				this.logger.info("Running external command: "+cmd);
-				final Process extProcess = Runtime.getRuntime().exec(cmd, null, new File(this.workingDirectory));
-
-				try (final BufferedLineReader in = new BufferedLineReader(new InputStreamReader(extProcess.getInputStream()), 102400);
-					final BufferedLineReader err = new BufferedLineReader(new InputStreamReader(extProcess.getErrorStream()), 102400);) {
-					while (extProcess.isAlive()) {
-						String line = null;
-						try {
-							while ((line = in.nextLine()) != null || (line = err.nextLine()) != null) {
-								this.logger.info(line);
+		if (!this.commandsBeforeStart.isEmpty()) {
+			this.logger.info("Running external commands before start...");
+			for (final String rawCmd : this.commandsBeforeStart) {
+				final String cmd = rawCmd
+						.replace("%MSM_SERVER_ID", id+"")
+						.replace("%MSM_SERVER_NAME", name)
+						.replace("%MSM_SERVER_WORKING_DIR", workingDirectory);
+				try {
+					this.sendRawMessageToAttachedActors("Running external command: "+cmd);
+					this.lines.add(new ConsoleLine("Running external command: "+cmd, false)); // add to lines history
+					
+					final Process extProcess = Runtime.getRuntime().exec(cmd, null, new File(this.workingDirectory));
+	
+					try (final BufferedLineReaderThread in = new BufferedLineReaderThread(new BufferedReader(new InputStreamReader(extProcess.getInputStream()), 1048576), "Server_"+this.getId()+"_BeforeStart_InReader", 4096);
+						final BufferedLineReaderThread err = new BufferedLineReaderThread(new BufferedReader(new InputStreamReader(extProcess.getErrorStream()), 1048576), "Server_"+this.getId()+"_BeforeStart_ErrReader", 4096);) {
+						
+						in.start();
+						err.start();
+						
+						while (extProcess.isAlive()) {
+							final String lineIn = in.lines().poll();
+							if (lineIn != null) {
+								this.sendRawMessageToAttachedActors(lineIn);
+								this.lines.add(new ConsoleLine(lineIn, false)); // add to lines history
+								
+								final int skippedLines = in.skippedLines();
+								if (skippedLines > 0) {
+									this.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
+									this.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
+								}
 							}
-						} catch (BufferOverflowException e) {
-							if (!in.isBufferEmpty()) {
-								line = in.getBufferAndClear();
-							} else if (!err.isBufferEmpty()) {
-								line = err.getBufferAndClear();
-							} else {
-								throw e;
+							
+							final String lineErr = in.lines().poll();
+							if (lineErr != null) {
+								this.sendRawMessageToAttachedActors(lineErr);
+								this.lines.add(new ConsoleLine(lineErr, true)); // add to lines history
+								
+								final int skippedLines = in.skippedLines();
+								if (skippedLines > 0) {
+									this.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
+									this.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
+								}
 							}
-							this.logger.info(line+"[LINE TOO LONG!]");
 						}
 					}
-				}
-				lastExitCode = extProcess.exitValue();
-				if (lastExitCode != 0) {
-					this.logger.info("An error occurred while running external command: "+cmd+": Exit Code: "+lastExitCode);
+					lastExitCode = extProcess.exitValue();
+					if (lastExitCode != 0) {
+						this.sendRawMessageToAttachedActors("An error occurred while running external command: "+cmd+": Exit Code: "+lastExitCode);
+						this.lines.add(new ConsoleLine("An error occurred while running external command: "+cmd+": Exit Code: "+lastExitCode, true));
+						
+						this.stop();
+						return;
+					}
+				} catch (Throwable e) {
+					this.sendRawMessageToAttachedActors("An error occurred while running external command: "+cmd+": "+e.getMessage());
+					this.lines.add(new ConsoleLine("An error occurred while running external command: "+cmd+": "+e.getMessage(), true));
+					
+					e.printStackTrace();
 					this.stop();
 					return;
 				}
-			} catch (Throwable e) {
-				this.logger.info("An error occurred while running external command: "+cmd+": "+e.getMessage());
-				e.printStackTrace();
-				this.stop();
-				return;
 			}
 		}
 		
 		this.controller = new ServerController(this);
+		
+		
 	}
 	
 	/**
@@ -483,5 +506,17 @@ public class Server {
 	 */
 	public long getLastStateChangeTime() {
 		return lastStateChangeTime;
+	}
+	
+	public void sendRawMessageToAttachedActors(String rawMessage) {
+		for (Actor actor : this.attachedActors) {
+			actor.sendRawMessage("["+this.id+"] "+rawMessage);
+		}
+	}
+	
+	public void sendMessageToAttachedActors(String rawMessage) {
+		for (Actor actor : this.attachedActors) {
+			actor.sendMessage("["+this.id+"] "+rawMessage);
+		}
 	}
 }
