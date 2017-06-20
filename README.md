@@ -1,11 +1,35 @@
-ModularServersManager is an easy to use, free, modular, open-source game servers manager.
+# ModularServersManager
+Easily manage your game servers.
 
-Although it is mainly developed for Minecraft servers, it supports most game servers that run on a terminal, like Terraria.
+## Features
+- **Modular** - enable only what you need!
+- **Public API** - develop your own modules!
+- **Free Open Source** - you can use it, for free! Also you can fork the project too!
+- **Runs on almost everything** - Linux, Windows, MacOS... anything that supports Java 1.8 can run it!
+- **Works with _almost_ everything** - Minecraft (Bukkit, Bungeecord and Forge) and Terraria (TShock) servers have been reported as working!
+- **Servers always up** - if your server crashes or freezes, it will be restarted automatically!
 
-ModularServersManager provides an easy way to keep your servers online. Its powerful API lets you develop any kind of module, like remote (web) interfaces, advanced multi-node networks, and more!
+### Some of the modules available
+- **Scheduler** - Run commands at the scheduled time!
+- **WebHook** - Provides a web hook server, useful for a Web Control Panel!
 
-For more information on how to get started, or develop modules for it, visit the [wiki page](http://github.com/KaiKikuchi/ModularServersManager/wiki).
+### Requirements
+- Java 1.8
 
-If you find any issue, please visit the [issue tracker](http://github.com/KaiKikuchi/ModularServersManager/issues).
+### Is it really free?
+Yes, it is!
 
-If you want to improve ModularServersManager code or the API, please fork the project and submit a pull-request.
+### I want this! Where do I download it?!
+You have missed the [release](https://github.com/ModularServersManager/ModularServersManager/releases) link above!
+
+### I have found an issue, or I have a suggestion!
+Please visit the [issue tracker](https://github.com/ModularServersManager/ModularServersManager/issues?q=is%3Aissue).
+
+### How to set up
+Check the [Quick installation guide](https://github.com/ModularServersManager/ModularServersManager/wiki/Quick-Installation-Guide)!
+
+### How to develop modules
+Check the [Quick API guide for developers](https://github.com/ModularServersManager/ModularServersManager/wiki/Quick-API-Guide-for-Developers)!
+
+### I need help!
+Please be sure to read the [wiki](https://github.com/ModularServersManager/ModularServersManager/wiki/) carefully. If you cannot make it work, please visit the [issue tracker](https://github.com/ModularServersManager/ModularServersManager/issues?q=is%3Aissue) for any question that has been posted already... if you can't find anything useful, then post a new "issue".
