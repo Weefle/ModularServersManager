@@ -233,7 +233,7 @@ public class ModulesManager {
 	 * Unregister all listeners for the specified event
 	 * @param event
 	 */
-	public void unregisterListeners(final Event event) {
+	public void unregisterListeners(final Class<? extends Event> event) {
 		listeners.remove(event);
 		postListeners.remove(event);
 	}
