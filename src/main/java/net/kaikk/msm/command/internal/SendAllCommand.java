@@ -6,13 +6,12 @@ import net.kaikk.msm.ModularServersManager;
 import net.kaikk.msm.command.Actor;
 import net.kaikk.msm.command.CommandExecutor;
 import net.kaikk.msm.server.Server;
-import net.kaikk.msm.util.Utils;
 
 public class SendAllCommand implements CommandExecutor {
 	final ModularServersManager instance = ModularServersManager.instance();
 	@Override
 	public Object process(Actor sender, String command, String[] arguments) throws IllegalStateException, IOException {
-		if (arguments.length < 1) {
+		if (arguments.length == 0) {
 			sender.sendMessage(this.longDescription(sender, command, arguments));
 			return null;
 		}
@@ -20,7 +19,7 @@ public class SendAllCommand implements CommandExecutor {
 		for (final Server server : instance.getServers().values()) {
 			try {
 				if (server.isAlive()) {
-					server.getController().writeln(Utils.mergeStringArrayFromIndex(arguments, 1));
+					server.getController().writeln(String.join("", arguments));
 				}
 			} catch (Throwable t) {
 				t.printStackTrace();
