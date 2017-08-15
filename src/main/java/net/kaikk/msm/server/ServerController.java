@@ -1,10 +1,8 @@
 package net.kaikk.msm.server;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -20,18 +18,18 @@ import net.kaikk.msm.event.server.ServerKilledEvent;
 import net.kaikk.msm.event.server.ServerReadyEvent;
 import net.kaikk.msm.event.server.ServerStoppedEvent;
 import net.kaikk.msm.server.Server.ServerState;
-import net.kaikk.msm.util.BufferedLineReaderThread;
+import net.kaikk.msm.util.BufferedProcessLineReader;
+import net.kaikk.msm.util.BufferedProcessLineReader.LogLine;
 
 public class ServerController implements Runnable {
 	protected final Server server;
 	protected final Process process;
-	protected final BufferedLineReaderThread in;
-	protected final BufferedLineReaderThread err;
+	protected final BufferedProcessLineReader processLines;
 	protected final BufferedWriter out;
 	protected final ScheduledFuture<?> schedule;
 	protected final long creationDate;
 	
-	protected final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1, new ThreadFactory() {
+	protected final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(0, new ThreadFactory() {
 		@Override
 		public Thread newThread(Runnable r) {
 			if (r instanceof ServerController) {
@@ -55,14 +53,11 @@ public class ServerController implements Runnable {
 		server.logger.info("Server process started.");
 		server.sendRawMessageToAttachedActors("Server process started.");
 		server.lines.add(new ConsoleLine("Server process started.", false));
-
-		in = new BufferedLineReaderThread(new BufferedReader(new InputStreamReader(process.getInputStream()), 1048576), "Server_"+this.getServer().getId()+"_InReader", 4096);
-		err = new BufferedLineReaderThread(new BufferedReader(new InputStreamReader(process.getErrorStream()), 1048576), "Server_"+this.getServer().getId()+"_ErrReader", 4096);
+		
+		processLines = new BufferedProcessLineReader(process, "Server_"+this.getServer().getId(), 4096);
+		
 		out = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()), 102400);
 		
-		in.start();
-		err.start();
-
 		schedule = scheduler.scheduleAtFixedRate(this, 100, 100, TimeUnit.MILLISECONDS);
 	}
 	
@@ -70,45 +65,28 @@ public class ServerController implements Runnable {
 	public void run() {
 		try {
 			final long t = System.currentTimeMillis();
-			String lineIn, lineErr;
-			do {
-				lineIn = in.lines().poll();
-				if (lineIn != null) {
+			LogLine logLine;
+			try {
+				while ((logLine = processLines.take()) != null && System.currentTimeMillis() - t < 100) {
+					final String line = logLine.getString();
 					// add to lines history
-					final ConsoleLine serverConsoleLine = new ConsoleLine(lineIn, false);
+					final ConsoleLine serverConsoleLine = new ConsoleLine(line, logLine.isError());
 					server.lines.add(serverConsoleLine);
 					
 					// call event
-					server.instance.getManager().callEvent(new ServerConsoleOutputEvent(server, serverConsoleLine));
+					server.instance.getManager().callEvent(new ServerConsoleOutputEvent(server, serverConsoleLine, logLine.isError()));
 					
-					this.handleConsoleLine(lineIn);
+					this.handleConsoleLine(line);
 					
-					final int skippedLines = in.skippedLines();
+					final int skippedLines = processLines.skippedLines();
 					if (skippedLines > 0) {
 						server.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
 						server.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
 					}
 				}
+			} catch (InterruptedException e1) {
 				
-				lineErr = err.lines().poll();
-				if (lineErr != null) {
-					// add to lines history
-					final ConsoleLine serverConsoleLine = new ConsoleLine(lineErr, true);
-					server.lines.add(serverConsoleLine);
-					
-					// call event
-					server.instance.getManager().callEvent(new ServerConsoleOutputEvent(server, serverConsoleLine, true));
-					
-					this.handleConsoleLine(lineErr);
-					
-					final int skippedLines = err.skippedLines();
-					if (skippedLines > 0) {
-						// if attached server, show in console
-						server.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
-						server.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
-					}
-				}
-			} while ((lineIn != null || lineErr != null) && System.currentTimeMillis() - t < 100);
+			}
 			
 			if(!process.isAlive()) {
 				server.controller = null;
@@ -208,40 +186,29 @@ public class ServerController implements Runnable {
 		
 		try {
 			final Process extProcess = Runtime.getRuntime().exec(cmd, null, new File(server.workingDirectory));
-			try (final BufferedLineReaderThread in = new BufferedLineReaderThread(new BufferedReader(new InputStreamReader(extProcess.getInputStream()), 1048576), "Server_"+this.server.getId()+"_AfterStop_InReader", 4096);
-				final BufferedLineReaderThread err = new BufferedLineReaderThread(new BufferedReader(new InputStreamReader(extProcess.getErrorStream()), 1048576), "Server_"+this.server.getId()+"_AfterStop_ErrReader", 4096);) {
-				
-				in.start();
-				err.start();
-				
-				
-				while (extProcess.isAlive()) {
-					final String lineIn = in.lines().poll();
-					if (lineIn != null) {
-						server.sendRawMessageToAttachedActors(lineIn);
-						server.lines.add(new ConsoleLine(lineIn, false)); // add to lines history
-						
-						final int skippedLines = in.skippedLines();
-						if (skippedLines > 0) {
-							server.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
-							server.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
-						}
-					}
+			final BufferedProcessLineReader extProcessLines = new BufferedProcessLineReader(extProcess, "Server_"+this.server.getId()+"_AfterStop", 4096);
+			
+			LogLine logLine;
+			try {
+				while ((logLine = extProcessLines.take()) != null) {
+					final String line = logLine.getString();
+					server.sendRawMessageToAttachedActors(line);
+					server.lines.add(new ConsoleLine(line, logLine.isError())); // add to lines history
 					
-					final String lineErr = in.lines().poll();
-					if (lineErr != null) {
-						server.sendRawMessageToAttachedActors(lineErr);
-						server.lines.add(new ConsoleLine(lineErr, true)); // add to lines history
-						
-						final int skippedLines = in.skippedLines();
-						if (skippedLines > 0) {
-							server.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
-							server.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
-						}
+					final int skippedLines = extProcessLines.skippedLines();
+					if (skippedLines > 0) {
+						server.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
+						server.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
 					}
 				}
+			} catch (InterruptedException e) {
+				
 			}
-			int ecode = extProcess.exitValue();
+			
+			if (extProcess.isAlive()) {
+				extProcess.destroyForcibly();
+			}
+			int ecode = extProcess.waitFor();
 			if (ecode != 0) {
 				server.logger.info("External command exited with code "+ecode);
 			}

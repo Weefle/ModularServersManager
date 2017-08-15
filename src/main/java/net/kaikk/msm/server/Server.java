@@ -1,9 +1,7 @@
 package net.kaikk.msm.server;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -24,7 +22,8 @@ import net.kaikk.msm.event.server.ServerKilledEvent;
 import net.kaikk.msm.event.server.ServerStartEvent;
 import net.kaikk.msm.event.server.ServerStopEvent;
 import net.kaikk.msm.event.server.ServerStoppedEvent;
-import net.kaikk.msm.util.BufferedLineReaderThread;
+import net.kaikk.msm.util.BufferedProcessLineReader;
+import net.kaikk.msm.util.BufferedProcessLineReader.LogLine;
 
 public class Server {
 	protected final ModularServersManager instance;
@@ -120,40 +119,26 @@ public class Server {
 					this.lines.add(new ConsoleLine("Running external command: "+cmd, false)); // add to lines history
 					
 					final Process extProcess = Runtime.getRuntime().exec(cmd, null, new File(this.workingDirectory));
-	
-					try (final BufferedLineReaderThread in = new BufferedLineReaderThread(new BufferedReader(new InputStreamReader(extProcess.getInputStream()), 1048576), "Server_"+this.getId()+"_BeforeStart_InReader", 4096);
-						final BufferedLineReaderThread err = new BufferedLineReaderThread(new BufferedReader(new InputStreamReader(extProcess.getErrorStream()), 1048576), "Server_"+this.getId()+"_BeforeStart_ErrReader", 4096);) {
-						
-						in.start();
-						err.start();
-						
-						while (extProcess.isAlive()) {
-							final String lineIn = in.lines().poll();
-							if (lineIn != null) {
-								this.sendRawMessageToAttachedActors(lineIn);
-								this.lines.add(new ConsoleLine(lineIn, false)); // add to lines history
-								
-								final int skippedLines = in.skippedLines();
-								if (skippedLines > 0) {
-									this.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
-									this.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
-								}
-							}
+					final BufferedProcessLineReader extProcessLines = new BufferedProcessLineReader(extProcess, "Server_"+this.getId()+"_AfterStop", 4096);
+					
+					try {
+						LogLine logLine;
+						while ((logLine = extProcessLines.take()) != null) {
+							final String line = logLine.getString();
+							this.sendRawMessageToAttachedActors(line);
+							this.lines.add(new ConsoleLine(line, logLine.isError())); // add to lines history
 							
-							final String lineErr = in.lines().poll();
-							if (lineErr != null) {
-								this.sendRawMessageToAttachedActors(lineErr);
-								this.lines.add(new ConsoleLine(lineErr, true)); // add to lines history
-								
-								final int skippedLines = in.skippedLines();
-								if (skippedLines > 0) {
-									this.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
-									this.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
-								}
+							final int skippedLines = extProcessLines.skippedLines();
+							if (skippedLines > 0) {
+								this.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
+								this.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
 							}
 						}
+					} catch (InterruptedException e) {
+						
 					}
-					lastExitCode = extProcess.exitValue();
+					
+					lastExitCode = extProcess.waitFor();
 					if (lastExitCode != 0) {
 						this.sendRawMessageToAttachedActors("An error occurred while running external command: "+cmd+": Exit Code: "+lastExitCode);
 						this.lines.add(new ConsoleLine("An error occurred while running external command: "+cmd+": Exit Code: "+lastExitCode, true));
