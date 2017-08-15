@@ -12,7 +12,7 @@ public class SendAllCommand implements CommandExecutor {
 	final ModularServersManager instance = ModularServersManager.instance();
 	@Override
 	public Object process(Actor sender, String command, String[] arguments) throws IllegalStateException, IOException {
-		if (arguments.length < 2) {
+		if (arguments.length < 1) {
 			sender.sendMessage(this.longDescription(sender, command, arguments));
 			return null;
 		}
