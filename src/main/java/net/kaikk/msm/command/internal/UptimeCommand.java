@@ -1,7 +1,6 @@
 package net.kaikk.msm.command.internal;
 
 import java.lang.management.ManagementFactory;
-import java.time.Duration;
 
 import net.kaikk.msm.ModularServersManager;
 import net.kaikk.msm.command.Actor;
@@ -17,7 +16,7 @@ public class UptimeCommand implements CommandExecutor {
         final long total = Runtime.getRuntime().totalMemory() / 1024 / 1024;
         final long free = Runtime.getRuntime().freeMemory() / 1024 / 1024;
 		
-		sender.sendMessage("Uptime: "+Utils.formatDuration(ManagementFactory.getRuntimeMXBean().getUptime()));
+		sender.sendMessage("Uptime: "+Utils.formatDuration(ManagementFactory.getRuntimeMXBean().getUptime() / 1000));
 		sender.sendMessage("Memory:");
 		sender.sendMessage("- Free: "+free+" MiB");
 		sender.sendMessage("- Total: "+total+" MiB");
