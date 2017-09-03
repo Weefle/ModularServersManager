@@ -119,19 +119,26 @@ public class Server {
 					this.lines.add(new ConsoleLine("Running external command: "+cmd, false)); // add to lines history
 					
 					final Process extProcess = Runtime.getRuntime().exec(cmd, null, new File(this.workingDirectory));
-					final BufferedProcessLineReader extProcessLines = new BufferedProcessLineReader(extProcess, "Server_"+this.getId()+"_AfterStop", 4096);
+					final BufferedProcessLineReader extProcessLines = new BufferedProcessLineReader(extProcess, "Server_"+this.getId()+"_AfterStop", 16384);
 					
 					try {
 						LogLine logLine;
-						while ((logLine = extProcessLines.take()) != null) {
-							final String line = logLine.getString();
-							this.sendRawMessageToAttachedActors(line);
-							this.lines.add(new ConsoleLine(line, logLine.isError())); // add to lines history
+						while (extProcess.isAlive()) {
+							while ((logLine = extProcessLines.poll(10L, TimeUnit.MILLISECONDS)) != null) {
+								final String line = logLine.getString();
+								this.sendRawMessageToAttachedActors(line);
+								this.lines.add(new ConsoleLine(line, logLine.isError())); // add to lines history
+								
+								final int skippedLines = extProcessLines.skippedLines();
+								if (skippedLines > 0) {
+									this.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
+									this.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
+								}
+							}
 							
-							final int skippedLines = extProcessLines.skippedLines();
-							if (skippedLines > 0) {
-								this.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
-								this.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
+							if (this.getState() == ServerState.KILLED) {
+								extProcess.destroyForcibly();
+								return;
 							}
 						}
 					} catch (InterruptedException e) {
@@ -146,6 +153,10 @@ public class Server {
 						this.stop();
 						return;
 					}
+					
+					if (this.getState() != ServerState.STARTING) {
+						return;
+					}
 				} catch (Throwable e) {
 					this.sendRawMessageToAttachedActors("An error occurred while running external command: "+cmd+": "+e.getMessage());
 					this.lines.add(new ConsoleLine("An error occurred while running external command: "+cmd+": "+e.getMessage(), true));
@@ -158,8 +169,6 @@ public class Server {
 		}
 		
 		this.controller = new ServerController(this);
-		
-		
 	}
 	
 	/**
@@ -503,5 +512,15 @@ public class Server {
 		for (Actor actor : this.attachedActors) {
 			actor.sendMessage("["+this.id+"] "+rawMessage);
 		}
+	}
+	
+	public void sendAndLogMessage(String message) {
+		this.sendAndLogMessage(message, false);
+	}
+	
+	public void sendAndLogMessage(String message, boolean isError) {
+		this.logger.info(message);
+		this.sendRawMessageToAttachedActors(message);
+		this.lines.add(new ConsoleLine(message, isError));
 	}
 }

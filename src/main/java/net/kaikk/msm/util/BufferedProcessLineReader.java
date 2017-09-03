@@ -52,12 +52,8 @@ public class BufferedProcessLineReader {
 		this.threadErr.start();
 	}
 	
-	public LogLine take() throws InterruptedException {
-		LogLine logLine = null;
-		do {
-			logLine = lines.poll(100L, TimeUnit.MILLISECONDS); // TODO improve... although it's just max 100 ms wait after the process ends
-		} while (logLine == null && process.isAlive());
-		return logLine;
+	public LogLine poll(long timeout, TimeUnit unit) throws InterruptedException {
+		return lines.poll(timeout, unit);
 	}
 	
 	public int skippedLines() {

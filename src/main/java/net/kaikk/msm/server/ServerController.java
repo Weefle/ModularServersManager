@@ -54,7 +54,7 @@ public class ServerController implements Runnable {
 		server.sendRawMessageToAttachedActors("Server process started.");
 		server.lines.add(new ConsoleLine("Server process started.", false));
 		
-		processLines = new BufferedProcessLineReader(process, "Server_"+this.getServer().getId(), 4096);
+		processLines = new BufferedProcessLineReader(process, "Server_"+this.getServer().getId(), 16384);
 		
 		out = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()), 102400);
 		
@@ -67,7 +67,7 @@ public class ServerController implements Runnable {
 			final long t = System.currentTimeMillis();
 			LogLine logLine;
 			try {
-				while ((logLine = processLines.take()) != null && System.currentTimeMillis() - t < 100) {
+				while ((logLine = processLines.poll(10L, TimeUnit.MILLISECONDS)) != null && System.currentTimeMillis() - t < 100) {
 					final String line = logLine.getString();
 					// add to lines history
 					final ConsoleLine serverConsoleLine = new ConsoleLine(line, logLine.isError());
@@ -89,6 +89,8 @@ public class ServerController implements Runnable {
 			}
 			
 			if(!process.isAlive()) {
+				server.sendAndLogMessage("Server process has terminated.");
+				
 				server.controller = null;
 				schedule.cancel(true);
 				try {
@@ -96,10 +98,6 @@ public class ServerController implements Runnable {
 				} catch (IllegalThreadStateException ex) {
 					// ignore
 				}
-				
-				server.logger.info("Server process has terminated.");
-				server.sendRawMessageToAttachedActors("Server process has terminated.");
-				server.lines.add(new ConsoleLine("Server process has terminated.", false));
 				
 				if (!server.commandsAfterStop.isEmpty()) {
 					server.logger.info("Running external commands after stop...");
@@ -131,7 +129,7 @@ public class ServerController implements Runnable {
 			
 			if (server.state == ServerState.STARTING && server.startTimeout > 0 && System.currentTimeMillis() - creationDate > server.startTimeout * 1000L) {
 				// server start timed out
-				server.logger.warn("Start timeout! Killing server process...");
+				server.sendAndLogMessage("Start timeout! Killing server process...");
 				process.destroyForcibly();
 				server.setState(ServerState.KILLED);
 				server.instance.getManager().callEvent(new ServerKilledEvent(server));
@@ -157,7 +155,7 @@ public class ServerController implements Runnable {
 			if (stopTimeoutTime != 0) {
 				if (server.state == ServerState.STOPPING) {
 					if (System.currentTimeMillis() - stopTimeoutTime >= 0) {
-						server.logger.warn("Stop timeout! Killing server process...");
+						server.sendAndLogMessage("Stop timeout! Killing server process...");
 						process.destroyForcibly();
 						server.setState(ServerState.KILLED);
 						server.instance.getManager().callEvent(new ServerKilledEvent(server));
@@ -186,28 +184,32 @@ public class ServerController implements Runnable {
 		
 		try {
 			final Process extProcess = Runtime.getRuntime().exec(cmd, null, new File(server.workingDirectory));
-			final BufferedProcessLineReader extProcessLines = new BufferedProcessLineReader(extProcess, "Server_"+this.server.getId()+"_AfterStop", 4096);
+			final BufferedProcessLineReader extProcessLines = new BufferedProcessLineReader(extProcess, "Server_"+this.server.getId()+"_AfterStop", 16384);
 			
 			LogLine logLine;
 			try {
-				while ((logLine = extProcessLines.take()) != null) {
-					final String line = logLine.getString();
-					server.sendRawMessageToAttachedActors(line);
-					server.lines.add(new ConsoleLine(line, logLine.isError())); // add to lines history
+				while(extProcess.isAlive()) {
+					while ((logLine = extProcessLines.poll(10L, TimeUnit.MILLISECONDS)) != null) {
+						final String line = logLine.getString();
+						server.sendRawMessageToAttachedActors(line);
+						server.lines.add(new ConsoleLine(line, logLine.isError())); // add to lines history
+						
+						final int skippedLines = extProcessLines.skippedLines();
+						if (skippedLines > 0) {
+							server.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
+							server.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
+						}
+					}
 					
-					final int skippedLines = extProcessLines.skippedLines();
-					if (skippedLines > 0) {
-						server.sendRawMessageToAttachedActors("Skipped "+skippedLines+" lines.");
-						server.lines.add(new ConsoleLine("Skipped "+skippedLines+" lines.", true));
+					if (server.getState() == ServerState.KILLED) {
+						extProcess.destroyForcibly();
+						return;
 					}
 				}
 			} catch (InterruptedException e) {
 				
 			}
 			
-			if (extProcess.isAlive()) {
-				extProcess.destroyForcibly();
-			}
 			int ecode = extProcess.waitFor();
 			if (ecode != 0) {
 				server.logger.info("External command exited with code "+ecode);
