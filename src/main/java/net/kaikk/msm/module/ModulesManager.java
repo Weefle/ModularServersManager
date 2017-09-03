@@ -33,6 +33,7 @@ import net.kaikk.msm.command.internal.StartAllServersCommand;
 import net.kaikk.msm.command.internal.StartServerCommand;
 import net.kaikk.msm.command.internal.StopAllServersCommand;
 import net.kaikk.msm.command.internal.StopServerCommand;
+import net.kaikk.msm.command.internal.VersionCommand;
 import net.kaikk.msm.event.Cancellable;
 import net.kaikk.msm.event.Event;
 import net.kaikk.msm.event.EventHandler;
@@ -79,6 +80,7 @@ public class ModulesManager {
 		this.internalCommand(new KillAllServersCommand(), "killall");
 		this.internalCommand(new SendCommand(), "send");
 		this.internalCommand(new SendAllCommand(), "sendall");
+		this.internalCommand(new VersionCommand(), "version");
 	}
 	
 	protected void internalCommand(final CommandExecutor commandExecutor, String command, String...aliases) {
