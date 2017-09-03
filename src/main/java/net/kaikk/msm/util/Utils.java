@@ -127,16 +127,16 @@ public class Utils {
 		final long seconds = (durationTime % 60);
 		final StringJoiner joiner = new StringJoiner(" ");
 		if (days != 0) {
-			joiner.add(days+" days");
+			joiner.add(days+"d");
 		}
 		if (hours != 0) {
-			joiner.add(hours+" hours");
+			joiner.add(hours+"h");
 		}
 		if (minutes != 0) {
-			joiner.add(minutes+" minutes");
+			joiner.add(minutes+"m");
 		}
 		if (seconds != 0) {
-			joiner.add(seconds+" seconds");
+			joiner.add(seconds+"s");
 		}
 		return joiner.toString();
 	}
