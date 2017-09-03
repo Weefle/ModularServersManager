@@ -9,6 +9,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 
 public class Utils {
 	public static final String[] EMPTY_STRING_ARRAY = new String[]{};
@@ -117,5 +118,26 @@ public class Utils {
 			sb.deleteCharAt(sb.length()-1);
 		}
 		return sb.toString();
+	}
+	
+	public static String formatDuration(long durationTime) {
+		final long days = durationTime / 86400;
+		final long hours = (durationTime % 86400) / 3600;
+		final long minutes = (durationTime % 3600) / 60;
+		final long seconds = (durationTime % 60);
+		final StringJoiner joiner = new StringJoiner(" ");
+		if (days != 0) {
+			joiner.add(days+" days");
+		}
+		if (hours != 0) {
+			joiner.add(hours+" hours");
+		}
+		if (minutes != 0) {
+			joiner.add(minutes+" minutes");
+		}
+		if (seconds != 0) {
+			joiner.add(seconds+" seconds");
+		}
+		return joiner.toString();
 	}
 }
