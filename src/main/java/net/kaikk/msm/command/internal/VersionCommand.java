@@ -1,5 +1,6 @@
 package net.kaikk.msm.command.internal;
 
+import net.kaikk.msm.AppInfo;
 import net.kaikk.msm.ModularServersManager;
 import net.kaikk.msm.command.Actor;
 import net.kaikk.msm.command.CommandExecutor;
@@ -9,7 +10,7 @@ public class VersionCommand implements CommandExecutor {
 	
 	@Override
 	public Object process(Actor sender, String command, String[] arguments) {
-		sender.sendMessage("ModularServersManager v."+ModularServersManager.VERSION+" by KaiNoMood");
+		sender.sendMessage("ModularServersManager v."+AppInfo.VERSION+" by KaiNoMood");
 		return null;
 	}
 	

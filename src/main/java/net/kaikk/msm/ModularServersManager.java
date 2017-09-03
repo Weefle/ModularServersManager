@@ -41,7 +41,7 @@ import net.kaikk.msm.server.Server;
 import net.kaikk.msm.util.Utils;
 
 public class ModularServersManager {
-	public static final String VERSION = "0.9.9";
+	public static final long CREATION_TIME = System.currentTimeMillis();
 	
 	protected static ModularServersManager instance;
 	protected Config config;
@@ -62,6 +62,8 @@ public class ModularServersManager {
 
 		// logger
 		this.logger = Logger.getLogger("MSM");
+
+		this.logger.info("ModularServersManager v."+AppInfo.VERSION+" by KaiNoMood");
 		
 		Writer writer = new Writer() {
 			@Override

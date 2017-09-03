@@ -18,9 +18,6 @@ public class Loader {
 			// libraries dependency check
 			Utils.checkDependencies("com.typesafe.config.Config", "jline.Terminal", "com.google.common.collect.Multimap", "com.impetus.annovention.Discoverer", "javassist.Loader", "org.apache.log4j.Logger");
 		}
-
-		System.out.println("ModularServersManager v."+ModularServersManager.VERSION+" by KaiNoMood");
-		
 		new ModularServersManager();
 	}
 }
