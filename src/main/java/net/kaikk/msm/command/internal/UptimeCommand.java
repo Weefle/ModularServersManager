@@ -29,7 +29,7 @@ public class UptimeCommand implements CommandExecutor {
 	
 	@Override
 	public String shortDescription(Actor sender, String command, String... arguments) {
-		return "ModularServersManager uptime";
+		return "Shows uptime, memory and thread count statistics";
 	}
 	
 	@Override

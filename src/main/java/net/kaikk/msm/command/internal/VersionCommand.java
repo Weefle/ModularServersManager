@@ -16,7 +16,7 @@ public class VersionCommand implements CommandExecutor {
 	
 	@Override
 	public String shortDescription(Actor sender, String command, String... arguments) {
-		return "ModularServersManager version";
+		return "current running version";
 	}
 	
 	@Override
